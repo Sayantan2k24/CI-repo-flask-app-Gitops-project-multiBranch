@@ -1,0 +1,98 @@
+pipeline {
+    agent any
+    environment {
+        DOCKERHUB_USERNAME = "sayantan2k21"
+        APP_NAME = "flask-example02"
+        IMAGE_TAG = "v2.0-${BUILD_NUMBER}"
+        IMAGE_NAME = "${DOCKERHUB_USERNAME}/${APP_NAME}"
+        REGISTRY_CREDS = 'docker-cred'
+        BRANCH = "release/v2.0"
+    }
+
+    
+    stages {
+        stage('Cleanup Workspace') {
+            steps {
+                // including the groovy script in the declarative pipeline
+                script {
+                    cleanWs()
+                }
+            }
+        }
+        
+        stage('Checkout SCM') {
+            steps {
+                git branch: 'release/v2.0',
+                credentialsId: 'git-cred',
+                url: 'https://github.com/Sayantan2k24/flask-app-ci-example02.git'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps{
+                // use docker commands on shell
+                script {
+                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+
+                    // image name total --> sayantan2k21/flask-example02:v1.0-1 for build number 1
+
+                    sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest"
+                }
+            }
+        }
+        
+        stage('Push Image to DockerHub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker-cred', passwordVariable: 'pass', usernameVariable: 'user')]) {
+                    sh """
+                        echo ${pass} | docker login --username ${user} --password-stdin
+                        docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                        docker push ${IMAGE_NAME}:latest
+                    """
+                }
+            }
+        }
+        stage('Delete Image locally') {
+            steps {
+                 sh "docker rmi ${IMAGE_NAME}:${IMAGE_TAG}"
+                 sh "docker rmi ${IMAGE_NAME}:latest"
+            }
+        }
+
+        stage('Updating Kubernetes Deployment File') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'git-cred', passwordVariable: 'pass', usernameVariable: 'user')]) {
+                        sh """
+                            git clone -b ${BRANCH} https://${user}:${pass}@github.com/Sayantan2k24/flask-app-CD-example02.git
+                            cd flask-app-CD-example02
+
+                            echo "Original deployment.yaml contents:"
+                            cat deployment.yaml
+                            
+                            echo "Image Tag Change Initiating.."
+                            sed -i "s|image: ${IMAGE_NAME}:.*|image: ${IMAGE_NAME}:${IMAGE_TAG}|g" deployment.yaml
+                            
+                            echo "Updated YAML file contents:"
+                            cat deployment.yaml
+
+                            echo "Configuring git"
+                            
+                            git config user.email "sayantansamanta12102001@gmail.com"
+                            git config user.name "Sayantan"
+                            
+                            git add deployment.yaml
+                            git commit -m "Updated image tag to ${IMAGE_TAG}"
+                            git push origin ${BRANCH}
+                            
+                        """
+                    
+                    }
+       
+                }
+            }
+        }
+        
+        
+    }
+}
