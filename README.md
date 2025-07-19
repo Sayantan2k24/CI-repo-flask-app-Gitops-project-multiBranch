@@ -197,7 +197,6 @@ You can access both using your browser with the public IP of the master node.
 * Terraform provisions:
   1. Jenkins EC2 instance (and sets it up via remote-exec).
   2. EC2 instances for the Kubernetes multi-node cluster.
-  3. 
 * Terraform also triggers Ansible (via local-exec) to:
   1. Initialize and configure Kubernetes cluster (using the EC2s).
   2. Install Argo CD inside K8s.
