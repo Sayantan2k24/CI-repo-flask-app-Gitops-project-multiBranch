@@ -8,7 +8,8 @@ app = Flask(__name__)
 def health():
     return jsonify(
         status="up",
-        server="v1.0"
+        server="v1.0",
+        Maintainer="Sayantan"
     )
 
 @app.route("/")
