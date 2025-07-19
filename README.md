@@ -165,7 +165,7 @@ You can access both using your browser with the public IP of the master node.
     ┌─────────────────────┐          ┌────────────────────────┐        ┌────────────────────────┐
     │ Provision Jenkins EC2│         │Provision K8s EC2 Nodes │        │Trigger Ansible (Infra) │
     └────────┬─────────────┘          └────────┬───────────────┘        └────────┬───────────────┘
-             │                                 │                                ▼
+             │                                 │                                 ▼
              │                        ┌────────▼─────────┐       ┌────────────────────────────────────┐
              │                        │Setup K8s Cluster │◄──────┤  Ansible Playbooks:                │
              │                        └────────┬─────────┘       │  - kubeadm multi-node cluster      │
