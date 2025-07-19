@@ -1,0 +1,85 @@
+---
+- name: Setup Argo CD and Ingress Controller on Kubernetes Master Node
+  hosts: master
+  become: yes
+  vars:
+    node_ip: "{{ node_ip }}"  # Pass this from Terraform using --extra-vars
+
+  tasks:
+
+    - name: Create Argo CD namespace
+      shell: kubectl create namespace argocd || true
+      changed_when: false
+
+    - name: Install Argo CD components
+      command: kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+    - name: Wait for Argo CD server deployment to be ready
+      command: kubectl wait deployment argocd-server -n argocd --for=condition=available --timeout=120s
+
+    - name: Patch Argo CD service to use NodePort
+      command: >-
+        kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "NodePort"}}'
+
+    - name: Wait for Argo CD service to have a NodePort assigned
+      command: >
+        bash -c "until kubectl get svc argocd-server -n argocd -o jsonpath='{.spec.ports[?(@.name==\"http\")].nodePort}'; do sleep 2; done"
+      changed_when: false
+
+
+    - name: Get Argo CD NodePort
+      command: >-
+        kubectl get svc argocd-server -n argocd -o jsonpath='{.spec.ports[?(@.name=="http")].nodePort}'
+      register: argocd_port
+
+    - name: Get Argo CD initial admin password
+      shell: kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
+      register: argocd_pass
+
+    - name: Install NGINX Ingress Controller
+      command: kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.0/deploy/static/provider/cloud/deploy.yaml
+
+    - name: Wait for NGINX Ingress deployment to be ready
+      command: kubectl wait --namespace ingress-nginx --for=condition=available deployment ingress-nginx-controller --timeout=120s
+
+    - name: Patch NGINX Ingress service to NodePort
+      command: >-
+        kubectl patch svc ingress-nginx-controller -n ingress-nginx -p '{"spec": {"type": "NodePort"}}'
+
+    - name: Wait for NGINX NodePort to be available
+      command: >
+        bash -c "until kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.spec.ports[?(@.name==\"http\")].nodePort}'; do sleep 2; done"
+      changed_when: false
+
+    - name: Get Ingress HTTP NodePort
+      command: >-
+        kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.spec.ports[?(@.name=="http")].nodePort}'
+      register: ingress_port
+
+# updated later: 
+# by default, External Traffic Policy:  Local
+# By setting ExternalTrafficPolicy=local, nodes only route traffic to pods that are on the same node, which then preserves client IP.
+# traffic on master node's public IP was not routing correctly when the pod was on another node.
+
+# 'Cluster' forwards traffic internally to any node running the pod.
+# allow the master node (with public IP) to receive traffic on 32118 and route it internally to the pod running on another node.
+    - name: Patch ingress-nginx service to use Cluster externalTrafficPolicy
+      command: >-
+        kubectl patch svc ingress-nginx-controller -n ingress-nginx -p '{"spec": {"externalTrafficPolicy": "Cluster"}}'
+      changed_when: false
+
+
+
+    - name: Write service URLs and credentials to JSON file (for Terraform)
+      delegate_to: localhost
+      run_once: true
+      copy:
+        content: |
+          {
+            "argocd_url": "http://{{ node_ip }}:{{ argocd_port.stdout }}",
+            "argocd_password": "{{ argocd_pass.stdout }}",
+            "ingress_url": "http://{{ node_ip }}:{{ ingress_port.stdout }}"
+          }
+        dest: ./ansible_outputs.json
+
+

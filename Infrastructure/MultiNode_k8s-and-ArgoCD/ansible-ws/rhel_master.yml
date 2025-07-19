@@ -1,0 +1,121 @@
+- name: For K8s Master Node Configuration Only
+  hosts: master
+  become: true
+  vars:
+    use_public_ip: false
+    pod_cidr: "192.168.0.0/16"
+
+  tasks:
+  - name: Get Master Private IP
+    shell: ip addr show eth0 | awk '/inet / {print $2}' | cut -d/ -f1
+    register: private_ip_output
+
+  # - name: Get Master Public IP using AWS metadata URL
+  #   uri:
+  #     url: http://169.254.169.254/latest/meta-data/public-ipv4
+  #     return_content: yes
+  #   register: public_ip_output
+
+  - name: Get IMDSv2 token
+    uri:
+      url: http://169.254.169.254/latest/api/token
+      method: PUT
+      headers:
+        X-aws-ec2-metadata-token-ttl-seconds: "21600"
+      return_content: yes
+    register: imds_token
+
+  - name: Get Master Public IP using AWS metadata URL (IMDSv2)
+    uri:
+      url: http://169.254.169.254/latest/meta-data/public-ipv4
+      method: GET
+      headers:
+        X-aws-ec2-metadata-token: "{{ imds_token.content }}"
+      return_content: yes
+    register: master_public_ip
+
+  - debug:
+      var: master_public_ip.content
+
+
+  - name: Set master_ip based on flag
+    set_fact:
+      master_ip: "{{ public_ip_output.content if use_public_ip else private_ip_output.stdout }}"
+
+  - name: Get master node short hostname
+    shell: hostname -s
+    register: hostname_output
+
+  - name: Check if Kubernetes is already initialized
+    shell: kubectl get nodes --no-headers
+    register: k8s_cluster_status
+    failed_when: false
+    changed_when: false
+
+  - name: Initialize Kubernetes Cluster
+    shell: |
+      kubeadm init \
+        --apiserver-advertise-address="{{ master_ip }}" \
+        --apiserver-cert-extra-sans="{{ master_ip }}" \
+        --pod-network-cidr="{{ pod_cidr }}" \
+        --node-name="{{ hostname_output.stdout }}" \
+        --ignore-preflight-errors Swap
+    when: k8s_cluster_status.rc != 0    
+    register: kubeinit_details
+
+  - name: Output kubeadm init result
+    debug:
+      var: kubeinit_details
+    when: k8s_cluster_status.rc != 0
+
+  - name: Create .kube directory
+    file:
+      path: "{{ ansible_env.HOME }}/.kube"
+      state: directory
+    when: k8s_cluster_status.rc != 0
+
+  - name: Copy kube config to .kube directory
+    copy:
+      src: /etc/kubernetes/admin.conf
+      dest: "{{ ansible_env.HOME }}/.kube/config"
+      remote_src: yes
+      mode: '0644'
+    when: k8s_cluster_status.rc != 0  
+
+  - name: Set ownership of .kube/config
+    file:
+      path: "{{ ansible_env.HOME }}/.kube/config"
+      owner: "{{ ansible_user_id }}"
+      group: "{{ ansible_user_gid }}"
+    when: k8s_cluster_status.rc != 0
+
+  - name: Copy calico.yaml to /tmp/ folder to master node
+    copy:
+      src: "../calico.yaml"
+      dest: "/tmp/calico.yaml"
+    when: k8s_cluster_status.rc != 0
+
+  - name: Apply Calico CNI
+    shell: kubectl apply -f /tmp/calico.yaml
+    when: k8s_cluster_status.rc != 0
+    # shell: kubectl apply -f https://raw.githubusercontent.com/Sayantan2k24/kubernetes-multinode-ansible-aws/main/calico.yaml
+
+  - name: Generate kubeadm join command
+    command: kubeadm token create --print-join-command
+    register: join_command
+    when: k8s_cluster_status.rc != 0
+
+  - name: Save join command to local file
+    local_action: copy content="{{ join_command.stdout_lines[0] }}" dest="./join-command"
+    when: k8s_cluster_status.rc != 0
+
+
+- name: In the worker Node
+  hosts: slaves
+  become: true
+  tasks:
+  - name: Copy join command to worker
+    copy: src=join-command dest=/tmp/join-command.sh mode=0777
+
+  - name: Join worker node to cluster
+    command: sh /tmp/join-command.sh
