@@ -2,7 +2,7 @@ pipeline {
     agent any
     environment {
         DOCKERHUB_USERNAME = "sayantan2k21"
-        APP_NAME = "flask-example02"
+        APP_NAME = "flask-multibranch-gitops-example"
         IMAGE_TAG = "v1.0-${BUILD_NUMBER}"
         IMAGE_NAME = "${DOCKERHUB_USERNAME}/${APP_NAME}"
         REGISTRY_CREDS = 'docker-cred'
@@ -24,7 +24,7 @@ pipeline {
             steps {
                 git branch: 'release/v1.0',
                 credentialsId: 'git-cred',
-                url: 'https://github.com/Sayantan2k24/flask-app-ci-example02.git'
+                url: 'https://github.com/Sayantan2k24/CI-repo-flask-app-Gitops-project-multiBranch.git'
             }
         }
 
@@ -34,7 +34,7 @@ pipeline {
                 script {
                     sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
 
-                    // image name total --> sayantan2k21/flask-example02:v1.0-1 for build number 1
+                    // image name total --> sayantan2k21/flask-multibranch-gitops-example:v1.0-1 for build number 1
 
                     sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest"
                 }
@@ -64,7 +64,9 @@ pipeline {
                 script {
                     withCredentials([usernamePassword(credentialsId: 'git-cred', passwordVariable: 'pass', usernameVariable: 'user')]) {
                         sh """
-                            git clone -b ${BRANCH} https://${user}:${pass}@github.com/Sayantan2k24/flask-app-CD-example02.git
+                            # cd Repo --> https://github.com/Sayantan2k24/CD-repo-flask-app-Gitops-project-multiBranch.git
+                            
+                            git clone -b ${BRANCH} https://${user}:${pass}@github.com/Sayantan2k24/CD-repo-flask-app-Gitops-project-multiBranch.git
                             cd flask-app-CD-example02
 
                             echo "Original deployment.yaml contents:"
