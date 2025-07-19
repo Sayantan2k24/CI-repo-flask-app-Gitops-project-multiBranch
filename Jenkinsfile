@@ -73,7 +73,7 @@ pipeline {
                             cat deployment.yaml
                             
                             echo "Image Tag Change Initiating.."
-                            sed -i "s|image: ${IMAGE_NAME}:.*|image: ${IMAGE_NAME}:${IMAGE_TAG}|g" deployment.yaml
+                            sed -i "s|image: docker.io/${IMAGE_NAME}:.*|image: docker.io/${IMAGE_NAME}:${IMAGE_TAG}|g" deployment.yaml
                             
                             echo "Updated YAML file contents:"
                             cat deployment.yaml
