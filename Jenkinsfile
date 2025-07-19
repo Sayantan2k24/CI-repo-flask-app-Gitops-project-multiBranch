@@ -32,7 +32,7 @@ pipeline {
             steps{
                 // use docker commands on shell
                 script {
-                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                    sh "docker build --no-cache -t ${IMAGE_NAME}:${IMAGE_TAG} ."
 
                     // image name total --> sayantan2k21/flask-multibranch-gitops-example:v2.0-1 for build number 1
 
