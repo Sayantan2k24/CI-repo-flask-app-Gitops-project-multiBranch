@@ -32,11 +32,11 @@ pipeline {
             steps{
                 // use docker commands on shell
                 script {
-                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                    sh "sudo docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
 
                     // image name total --> sayantan2k21/flask-multibranch-gitops-example:v2.0-1 for build number 1
 
-                    sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest"
+                    sh "sudo docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest"
                 }
             }
         }
@@ -45,17 +45,17 @@ pipeline {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'docker-cred', passwordVariable: 'pass', usernameVariable: 'user')]) {
                     sh """
-                        echo ${pass} | docker login --username ${user} --password-stdin
-                        docker push ${IMAGE_NAME}:${IMAGE_TAG}
-                        docker push ${IMAGE_NAME}:latest
+                        echo ${pass} | sudo docker login --username ${user} --password-stdin
+                        sudo docker push ${IMAGE_NAME}:${IMAGE_TAG}
+                        sudo docker push ${IMAGE_NAME}:latest
                     """
                 }
             }
         }
         stage('Delete Image locally') {
             steps {
-                 sh "docker rmi ${IMAGE_NAME}:${IMAGE_TAG}"
-                 sh "docker rmi ${IMAGE_NAME}:latest"
+                 sh "sudo docker rmi ${IMAGE_NAME}:${IMAGE_TAG}"
+                 sh "sudo docker rmi ${IMAGE_NAME}:latest"
             }
         }
 
