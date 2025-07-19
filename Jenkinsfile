@@ -67,7 +67,7 @@ pipeline {
                             # cd Repo --> https://github.com/Sayantan2k24/CD-repo-flask-app-Gitops-project-multiBranch.git
                             
                             git clone -b ${BRANCH} https://${user}:${pass}@github.com/Sayantan2k24/CD-repo-flask-app-Gitops-project-multiBranch.git
-                            cd flask-app-CD-example02
+                            cd CD-repo-flask-app-Gitops-project-multiBranch
 
                             echo "Original deployment.yaml contents:"
                             cat deployment.yaml
